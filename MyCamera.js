@@ -9,7 +9,7 @@ function MyCamera(props) {
     <Camera
       style={StyleSheet.absoluteFill}
       device={device}
-      isActive={true}
+      isActive={true}      
       {...props}
     />
   )

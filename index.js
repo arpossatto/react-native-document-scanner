@@ -10,7 +10,7 @@ import {
   PanResponder,
   Platform,
 } from "react-native";
-import RNCamera from "./MyCamera";
+import MyCamera from "./MyCamera";
 import Svg, { Polygon } from "react-native-svg";
 
 // Native modules
@@ -20,13 +20,13 @@ class DocumentScanner extends Component {
   static propTypes = {
     onStartCapture: PropTypes.func,
     onEndCapture: PropTypes.func,
-    RNCameraProps: PropTypes.object,
+    CameraProps: PropTypes.object,
   };
 
   static defaultProps = {
     onStartCapture: () => {},
     onEndCapture: () => {},
-    RNCameraProps: {},
+    cameraProps: {},
   };
 
   constructor(props) {
@@ -227,12 +227,14 @@ class DocumentScanner extends Component {
 
     // capture photo
     const options = {
-      base64: false,
-      fixOrientation: true,
-      pauseAfterCapture: true,
-      orientation: "portrait",
+      // base64: false,
+      // fixOrientation: true,
+      // pauseAfterCapture: true,
+      // orientation: "portrait",
+      quality: 85,
+      skipMetadata: true,
     };
-    const { uri } = await camera.takePictureAsync(options);
+    const { path: uri } = await camera.takePhoto(options);
 
     // attempt to identify document from opencv
     const points = await RNDocumentScanner.detectEdges(
@@ -248,7 +250,7 @@ class DocumentScanner extends Component {
   };
 
   render() {
-    const { RNCameraProps } = this.props;
+    const { cameraProps } = this.props;
     const { photo, points, zoomOnPoint } = this.state;
     const {
       width: containerWidth,
@@ -259,23 +261,20 @@ class DocumentScanner extends Component {
       <View style={styles.container} onLayout={this._handleLayout}>
         {/* Camera */}
         {photo === null && (
-          <RNCamera
-            style={styles.camera}
-            type={RNCamera.Constants.Type.back}
-            captureAudio={false}
-            {...RNCameraProps}
-          >
-            {({ camera }) => {
-              // Capture button
-              return (
-                <TouchableOpacity
-                  activeOpacity={0.6}
-                  onPress={() => this._handlePressCapture(camera)}
-                  style={styles.captureBtn}
-                />
-              );
-            }}
-          </RNCamera>
+          <View style={styles.container}>
+            <MyCamera
+              style={StyleSheet.absoluteFill}
+              audio={false}
+              video={false}
+              photo={true}
+              isActive={true}
+              {...cameraProps}
+              ref={(camera) => this.camera = camera}
+            />
+            <TouchableOpacity onPress={this._handlePressCapture}>
+              <View style={styles.captureBtn} />
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Photo */}
@@ -376,6 +375,7 @@ const styles = StyleSheet.create({
   },
   camera: {
     flex: 1,
+    backgroundColor: "black",
   },
   captureBtn: {
     alignSelf: "center",
