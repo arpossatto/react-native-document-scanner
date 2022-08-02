@@ -1,3 +1,4 @@
+import React from 'react';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 
 function MyCamera(props) {

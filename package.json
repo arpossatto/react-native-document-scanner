@@ -1,6 +1,6 @@
 {
   "name": "react-native-document-scanner",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Document scanner with border detection, perspective correction and custom crop/resize",
   "main": "index.js",
   "scripts": {
