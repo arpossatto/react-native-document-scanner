@@ -10,7 +10,7 @@ import {
   PanResponder,
   Platform,
 } from "react-native";
-import { RNCamera } from "react-native-camera";
+import RNCamera from "./MyCamera";
 import Svg, { Polygon } from "react-native-svg";
 
 // Native modules

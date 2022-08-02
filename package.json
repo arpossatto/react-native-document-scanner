@@ -1,6 +1,6 @@
 {
   "name": "react-native-document-scanner",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Document scanner with border detection, perspective correction and custom crop/resize",
   "main": "index.js",
   "scripts": {
@@ -11,19 +11,19 @@
   ],
   "author": "Romain Marquois",
   "license": "MIT",
-  "homepage": "https://github.com/ubidreams/react-native-document-scanner",
+  "homepage": "https://github.com/arpossatto/react-native-document-scanner",
   "peerDependencies": {
-    "react-native": "0.59.10",
-    "react-native-camera": "3.0.1",
-    "react-native-svg": "9.6.2"
+    "react-native": "0.69.3",
+    "react-native-svg": "12.4.3",
+    "react-native-vision-camera": "2.14.0"
   },
   "devDependencies": {
-    "standard": "13.1.0",
     "@babel/core": "7.4.0",
     "@babel/runtime": "7.4.2",
     "babel-core": "7.0.0-bridge.0",
     "babel-eslint": "10.0.1",
-    "eslint": "5.15.3"
+    "eslint": "5.15.3",
+    "standard": "13.1.0"
   },
   "standard": {
     "parser": "babel-eslint",
@@ -42,5 +42,5 @@
       "FormData",
       "React$Element"
     ]
-  }
+  }  
 }
