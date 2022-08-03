@@ -1,449 +1,134 @@
-// External libs
-import React, { Component } from "react";
-import PropTypes from "prop-types";
+import React from "react";
 import {
+  requireNativeComponent,
   NativeModules,
-  StyleSheet,
   View,
-  TouchableOpacity,
-  Image,
-  PanResponder,
   Platform,
+  PermissionsAndroid,
+  DeviceEventEmitter,
+  Text
 } from "react-native";
-import MyCamera from "./MyCamera";
-import Svg, { Polygon } from "react-native-svg";
+import PropTypes from "prop-types";
 
-// Native modules
-const { RNDocumentScanner } = NativeModules;
+const RNPdfScanner = requireNativeComponent("RNPdfScanner", PdfScanner);
+const CameraManager = NativeModules.RNPdfScannerManager || {};
 
-class DocumentScanner extends Component {
-  static propTypes = {
-    onStartCapture: PropTypes.func,
-    onEndCapture: PropTypes.func,
-    CameraProps: PropTypes.object,
-  };
-
-  static defaultProps = {
-    onStartCapture: () => {},
-    onEndCapture: () => {},
-    cameraProps: {},
-  };
-
+class PdfScanner extends React.Component {
   constructor(props) {
     super(props);
-
-    this.initialState = {
-      photo: null,
-      points: [],
-      zoomOnPoint: null,
-    };
-
     this.state = {
-      ...this.initialState,
-      layout: {},
+      permissionsAuthorized: Platform.OS === "ios"
     };
   }
 
-  /**
-   * Allow to restart and scan document again
-   */
-  restart = () => {
-    this.setState(this.initialState);
+  onPermissionsDenied = () => {
+    if (this.props.onPermissionsDenied) this.props.onPermissionsDenied();
   };
 
-  /**
-   * Start image cropping according to current points and return path of cached file
-   * @param options = {
-   *    width: Number
-   *    height: Number,
-   *    thumbnail: Boolean
-   * }
-   * @return Promise
-   */
-  cropImage = (options = {}) => {
-    const finalOptions = {
-      width: -1,
-      height: -1,
-      thumbnail: false,
-      ...options,
-    };
+  componentDidMount() {
+    this.getAndroidPermissions();
+  }
 
-    return RNDocumentScanner.crop(this.state.points, finalOptions);
-  };
+  async getAndroidPermissions() {
+    if (Platform.OS !== "android") return;
+    try {
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE
+      ]);
 
-  /**
-   * When layout changed
-   * @param layout
-   */
-  _handleLayout = async ({ nativeEvent: { layout } }) => {
-    // TODO: update points positions when layout has changed
-    // update state
-    this.setState({
-      layout,
-    });
-  };
-
-  /**
-   * Get image zoom style according to the current holding point
-   */
-  _getImageZoomStyleForCurrentHoldingPoint = () => {
-    const { zoomOnPoint } = this.state;
-    const adjustment = ZOOM_CONTAINER_SIZE / 2;
-
-    return {
-      marginLeft: -zoomOnPoint.x + adjustment - ZOOM_CURSOR_BORDER_SIZE,
-      marginTop: -zoomOnPoint.y + adjustment - ZOOM_CURSOR_SIZE / 2,
-    };
-  };
-
-  /**
-   * Get polygon from current points
-   */
-  _getPolygonPoints = () => {
-    let pointsAsString = "";
-    const { points } = this.state;
-
-    points.forEach((point, index) => {
-      pointsAsString += `${point.x},${point.y}`;
-
-      if (index !== point.length - 1) {
-        pointsAsString += " ";
-      }
-    });
-
-    return pointsAsString;
-  };
-
-  /**
-   * Check if point can move to the given position
-   */
-  _isPointCanMove = (pointIndex, moveX, moveY) => {
-    const { layout, points } = this.state;
-
-    // current point must be at a minimum distance of point container size
-    const sideMinSize = IMAGE_CROPPER_POINT_CONTAINER_SIZE;
-
-    switch (pointIndex) {
-      case 0:
-        return (
-          points[1].x - moveX >= sideMinSize &&
-          points[3].y - moveY >= sideMinSize &&
-          points[2].x - moveX >= sideMinSize &&
-          points[2].y - moveY >= sideMinSize
-        );
-
-      case 1:
-        return (
-          moveX - points[0].x >= sideMinSize &&
-          points[2].y - moveY >= sideMinSize &&
-          moveX - points[3].x >= sideMinSize &&
-          points[3].y - moveY >= sideMinSize
-        );
-
-      case 2:
-        return (
-          moveX - points[3].x >= sideMinSize &&
-          moveY - points[1].y >= sideMinSize &&
-          moveX - points[0].x >= sideMinSize &&
-          moveY - points[0].y >= sideMinSize
-        );
-
-      case 3:
-        return (
-          points[2].x - moveX >= sideMinSize &&
-          moveY - points[0].y >= sideMinSize &&
-          points[1].x - moveX >= sideMinSize &&
-          moveY - points[1].y >= sideMinSize
-        );
+      if (
+        granted["android.permission.READ_EXTERNAL_STORAGE"] ===
+          PermissionsAndroid.RESULTS.GRANTED &&
+        granted["android.permission.WRITE_EXTERNAL_STORAGE"] ===
+          PermissionsAndroid.RESULTS.GRANTED
+      )
+        this.setState({ permissionsAuthorized: true });
+      else this.onPermissionsDenied();
+    } catch (err) {
+      this.onPermissionsDenied();
     }
+  }
 
-    // points must be in current layout
-    if (
-      moveX <= 0 ||
-      moveY <= 0 ||
-      moveX >= layout.width ||
-      moveY >= layout.height
-    ) {
-      return false;
+  static defaultProps = {
+    onPictureTaken: () => {},
+    onProcessing: () => {}
+  };
+
+  sendOnPictureTakenEvent(event) {
+    return this.props.onPictureTaken(event.nativeEvent);
+  }
+
+  sendOnRectanleDetectEvent(event) {
+    if (!this.props.onRectangleDetect) return null;
+    return this.props.onRectangleDetect(event.nativeEvent);
+  }
+
+  getImageQuality() {
+    if (!this.props.quality) return 0.8;
+    if (this.props.quality > 1) return 1;
+    if (this.props.quality < 0.1) return 0.1;
+    return this.props.quality;
+  }
+
+  componentWillMount() {
+    if (Platform.OS === "android") {
+      const { onPictureTaken, onProcessing } = this.props;
+      DeviceEventEmitter.addListener("onPictureTaken", onPictureTaken);
+      DeviceEventEmitter.addListener("onProcessingChange", onProcessing);
     }
+  }
 
-    return true;
-  };
+  componentWillUnmount() {
+    if (Platform.OS === "android") {
+      const { onPictureTaken, onProcessing } = this.props;
+      DeviceEventEmitter.removeListener("onPictureTaken", onPictureTaken);
+      DeviceEventEmitter.removeListener("onProcessingChange", onProcessing);
+    }
+  }
 
-  /**
-   * Create PanResponder for given point.
-   * Used for edge adjustment.
-   * https://facebook.github.io/react-native/docs/0.59/panresponder
-   * @param pointIndex
-   * @return PanResponder
-   */
-  _createPanResponderForPoint = (pointIndex) => {
-    const { points } = this.state;
-
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        this.setState({ zoomOnPoint: points[pointIndex] });
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        this.setState({
-          points: points.map((point, index) => {
-            if (index === pointIndex) {
-              if (
-                this._isPointCanMove(
-                  pointIndex,
-                  point.x + gestureState.dx,
-                  point.y + gestureState.dy
-                )
-              ) {
-                return {
-                  x: point.x + gestureState.dx,
-                  y: point.y + gestureState.dy,
-                };
-              }
-            }
-
-            return point;
-          }),
-          zoomOnPoint: points[pointIndex],
-        });
-      },
-      onPanResponderRelease: () => {
-        this.setState({ zoomOnPoint: null });
-      },
-    });
-  };
-
-  /**
-   * When capture button is clicked
-   * @param camera
-   */
-  _handlePressCapture = async (camera) => {
-    const { layout } = this.state;
-
-    // callback from props
-    this.props.onStartCapture();
-
-    // capture photo
-    const options = {
-      // base64: false,
-      // fixOrientation: true,
-      // pauseAfterCapture: true,
-      // orientation: "portrait",
-      quality: 85,
-      skipMetadata: true,
-    };
-    const { path: uri } = await camera.takePhoto(options);
-
-    // attempt to identify document from opencv
-    const points = await RNDocumentScanner.detectEdges(
-      uri.replace("file://", ""),
-      layout
-    );
-
-    // update state
-    this.setState({ photo: uri, points }, () => {
-      // callback from props
-      this.props.onEndCapture();
-    });
-  };
+  capture() {
+    // NativeModules.RNPdfScannerManager.capture();
+    if (this.state.permissionsAuthorized) CameraManager.capture();
+  }
 
   render() {
-    const { cameraProps } = this.props;
-    const { photo, points, zoomOnPoint } = this.state;
-    const {
-      width: containerWidth,
-      height: containerHeight,
-    } = this.state.layout;
-
+    if (!this.state.permissionsAuthorized) return null;
     return (
-      <View style={styles.container} onLayout={this._handleLayout}>
-        {/* Camera */}
-        {photo === null && (
-          <View style={styles.container}>
-            <MyCamera
-              style={StyleSheet.absoluteFill}
-              audio={false}
-              video={false}
-              photo={true}
-              isActive={true}
-              {...cameraProps}
-              ref={(camera) => this.camera = camera}
-            />
-            <TouchableOpacity onPress={this._handlePressCapture}>
-              <View style={styles.captureBtn} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Photo */}
-        {photo !== null && (
-          <Image
-            source={{ uri: photo }}
-            resizeMode={Platform.OS === "ios" ? "stretch" : "cover"}
-            style={{
-              width: containerWidth,
-              height: containerHeight,
-            }}
-            fadeDuration={0}
-          />
-        )}
-
-        {/* Image cropper (polygon) */}
-        {points.length > 0 && (
-          <Svg
-            width={containerWidth}
-            height={containerHeight}
-            style={styles.imageCropperPolygonContainer}
-          >
-            <Polygon
-              points={this._getPolygonPoints()}
-              fill="transparent"
-              stroke={CROPPER_COLOR}
-              strokeWidth="1"
-            />
-          </Svg>
-        )}
-
-        {/* Image cropper (points) */}
-        {points.map((point, index) => (
-          <View
-            key={index}
-            style={[
-              styles.imageCropperPointContainer,
-              {
-                top: point.y,
-                left: point.x,
-              },
-            ]}
-            {...this._createPanResponderForPoint(index).panHandlers}
-          >
-            <View style={styles.imageCropperPoint} />
-          </View>
-        ))}
-
-        {/* Zoom on point holding */}
-        {photo !== null && (
-          <View
-            style={[
-              styles.zoomContainer,
-              { opacity: zoomOnPoint !== null ? 1 : 0 },
-            ]}
-          >
-            {/* Image */}
-            <Image
-              source={{ uri: photo }}
-              resizeMode={Platform.OS === "ios" ? "stretch" : "cover"}
-              style={[
-                {
-                  width: containerWidth,
-                  height: containerHeight,
-                },
-                zoomOnPoint !== null
-                  ? this._getImageZoomStyleForCurrentHoldingPoint()
-                  : {},
-              ]}
-              fadeDuration={0}
-            />
-
-            {/* Cursor */}
-            <View style={styles.zoomCursor}>
-              <View style={styles.zoomCursorHorizontal} />
-              <View style={styles.zoomCursorVertical} />
-            </View>
-          </View>
-        )}
-      </View>
+      <RNPdfScanner
+        {...this.props}
+        onPictureTaken={this.sendOnPictureTakenEvent.bind(this)}
+        onRectangleDetect={this.sendOnRectanleDetectEvent.bind(this)}
+        useFrontCam={this.props.useFrontCam || false}
+        brightness={this.props.brightness || 0}
+        saturation={this.props.saturation || 1}
+        contrast={this.props.contrast || 1}
+        quality={this.getImageQuality()}
+        detectionCountBeforeCapture={
+          this.props.detectionCountBeforeCapture || 5
+        }
+        detectionRefreshRateInMS={this.props.detectionRefreshRateInMS || 50}
+      />
     );
   }
 }
 
-const IMAGE_CROPPER_POINT_CONTAINER_SIZE = 40;
-const IMAGE_CROPPER_POINT_SIZE = 20;
+PdfScanner.propTypes = {
+  onPictureTaken: PropTypes.func,
+  onRectangleDetect: PropTypes.func,
+  overlayColor: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  enableTorch: PropTypes.bool,
+  useFrontCam: PropTypes.bool,
+  saturation: PropTypes.number,
+  brightness: PropTypes.number,
+  contrast: PropTypes.number,
+  detectionCountBeforeCapture: PropTypes.number,
+  detectionRefreshRateInMS: PropTypes.number,
+  quality: PropTypes.number,
+  documentAnimation: PropTypes.bool,
+  noGrayScale: PropTypes.bool,
+  manualOnly: PropTypes.bool,
+  ...View.propTypes // include the default view properties
+};
 
-const CROPPER_COLOR = "#0082CA";
-
-const ZOOM_CONTAINER_SIZE = 120;
-const ZOOM_CONTAINER_BORDER_WIDTH = 2;
-const ZOOM_CURSOR_SIZE = 10;
-const ZOOM_CURSOR_BORDER_SIZE = 1;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  camera: {
-    flex: 1,
-    backgroundColor: "black",
-  },
-  captureBtn: {
-    alignSelf: "center",
-    position: "absolute",
-    bottom: 40,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "white",
-    borderWidth: 5,
-    borderColor: "#c2c2c2",
-  },
-  imageCropperPointContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    position: "absolute",
-    width: IMAGE_CROPPER_POINT_CONTAINER_SIZE,
-    height: IMAGE_CROPPER_POINT_CONTAINER_SIZE,
-    marginTop: -IMAGE_CROPPER_POINT_CONTAINER_SIZE / 2,
-    marginLeft: -IMAGE_CROPPER_POINT_CONTAINER_SIZE / 2,
-    zIndex: 2,
-    elevation: 2,
-  },
-  imageCropperPoint: {
-    width: IMAGE_CROPPER_POINT_SIZE,
-    height: IMAGE_CROPPER_POINT_SIZE,
-    borderRadius: IMAGE_CROPPER_POINT_SIZE / 2,
-    backgroundColor: "rgba(255, 255, 255, 0.4)",
-    borderWidth: 1,
-    borderColor: CROPPER_COLOR,
-  },
-  imageCropperPolygonContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    zIndex: 1,
-    elevation: 1,
-  },
-  zoomContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: ZOOM_CONTAINER_SIZE,
-    height: ZOOM_CONTAINER_SIZE,
-    borderRadius: ZOOM_CONTAINER_SIZE / 2,
-    borderColor: "white",
-    borderWidth: ZOOM_CONTAINER_BORDER_WIDTH,
-    overflow: "hidden",
-    backgroundColor: "black",
-  },
-  zoomCursor: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-    height: "100%",
-  },
-  zoomCursorHorizontal: {
-    width: ZOOM_CURSOR_SIZE,
-    height: ZOOM_CURSOR_BORDER_SIZE,
-    backgroundColor: CROPPER_COLOR,
-  },
-  zoomCursorVertical: {
-    width: ZOOM_CURSOR_BORDER_SIZE,
-    height: ZOOM_CURSOR_SIZE,
-    marginTop: -ZOOM_CURSOR_SIZE / 2,
-    backgroundColor: CROPPER_COLOR,
-  },
-});
-
-export default DocumentScanner;
+export default PdfScanner;

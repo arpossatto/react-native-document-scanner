@@ -1,46 +1,24 @@
 {
   "name": "react-native-document-scanner",
-  "version": "1.0.10",
-  "description": "Document scanner with border detection, perspective correction and custom crop/resize",
+  "description": "Scan documents, automatic border detection, automatic crop",
+  "version": "1.4.3",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Michaelvilleneuve/react-native-document-scanner"
+  },
   "keywords": [
-    "react-native"
+    "react-native",
+    "scanner",
+    "ios"
   ],
-  "author": "Romain Marquois",
+  "author": "Michaël Villeneuve",
   "license": "MIT",
-  "homepage": "https://github.com/arpossatto/react-native-document-scanner",
   "peerDependencies": {
-    "react-native": "0.69.3",
-    "react-native-svg": "12.4.3",
-    "react-native-vision-camera": "2.14.0"
-  },
-  "devDependencies": {
-    "@babel/core": "7.4.0",
-    "@babel/runtime": "7.4.2",
-    "babel-core": "7.0.0-bridge.0",
-    "babel-eslint": "10.0.1",
-    "eslint": "5.15.3",
-    "standard": "13.1.0"
-  },
-  "standard": {
-    "parser": "babel-eslint",
-    "plugins": [
-      "react"
-    ],
-    "globals": [
-      "describe",
-      "test",
-      "jest",
-      "expect",
-      "fetch",
-      "navigator",
-      "__DEV__",
-      "XMLHttpRequest",
-      "FormData",
-      "React$Element"
-    ]
-  }  
+    "react": "18.0.0",
+    "react-native": "0.69.3"
+  }
 }
